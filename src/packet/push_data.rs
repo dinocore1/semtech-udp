@@ -18,6 +18,7 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use time::{macros::datetime, OffsetDateTime};
 use std::io::{Cursor, Write};
 
 #[derive(Debug, Clone)]
@@ -178,6 +179,67 @@ pub struct RxPkV2 {
     pub time: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RxPkV3 {
+    pub key: u32,
+    pub pkt: RxPktV3Data,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RxPktV3Data {
+    pub pos: Option<WGS84Position>,
+    pub snr: i32,
+    pub freq: u32,
+    pub rssi: u8,
+    pub tmst: u32,
+    pub datarate: DataRate,
+    pub gatwy_id: u64,
+    pub gps_time: Option<GPSTime>,
+    #[serde(with = "crate::packet::types::base64")]
+    pub payload: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WGS84Position {
+    /// longitude (deg) 1e-7 scale
+    pub lon: i32,
+
+    /// latitude (deg) 1e-7 scale
+    pub lat: i32,
+
+    /// Height above ellipsoid (mm)
+    pub height: i32,
+
+    /// Horizontal accuracy estimate (mm)
+    pub hacc: u32,
+
+    /// Vertical accuracy estimate (mm)
+    pub vacc: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GPSTime {
+    pub secs: u64,
+    pub nanos: u32,
+}
+
+impl GPSTime {
+
+    pub const GPS_EPOCH: OffsetDateTime = datetime!(1980-01-06 0:00 UTC);
+
+    pub fn as_duration(&self) -> Duration {
+        Duration::new(self.secs, self.nanos)
+    }
+
+    pub fn to_datetime(&self) -> OffsetDateTime {
+        GPSTime::GPS_EPOCH + self.as_duration()
+    }
+
+    pub fn to_utc(&self) -> OffsetDateTime {
+        self.to_datetime() - Duration::from_secs(18)
+    }
+}
+
 /*
    Name |  Ty
    pe  | Function
@@ -214,6 +276,7 @@ pub struct RSig {
 pub enum RxPk {
     V1(RxPkV1),
     V2(RxPkV2),
+    V3(RxPkV3),
 }
 
 use std::fmt;
@@ -245,6 +308,7 @@ macro_rules! get_field {
     };
 }
 use std::cmp;
+use std::time::Duration;
 
 impl RxPk {
     pub fn get_snr(&self) -> f32 {
@@ -261,6 +325,7 @@ impl RxPk {
                         max
                     }
                 }),
+            RxPk::V3(pk) => pk.pkt.snr as f32 / 10.0_f32,
         }
     }
 
@@ -268,6 +333,7 @@ impl RxPk {
         match self {
             RxPk::V1(pk) => pk.rssi,
             RxPk::V2(pk) => pk.rsig.iter().fold(-150, |max, x| cmp::max(max, x.rssic)),
+            RxPk::V3(pk) => todo!()
         }
     }
 
@@ -285,27 +351,56 @@ impl RxPk {
                     max
                 }
             }),
+            RxPk::V3(pk) => Some(pk.pkt.rssi as i32),
         }
     }
 
-    pub fn get_frequency(&self) -> &f64 {
-        get_field!(self, freq)
+    pub fn get_frequency(&self) -> f64 {
+        match self {
+            RxPk::V1(pk) => pk.freq,
+            RxPk::V2(pk) => pk.freq,
+            RxPk::V3(pk) => pk.pkt.freq as f64 / 1_000_000_f64,
+        }
     }
 
     pub fn get_data(&self) -> &Vec<u8> {
-        get_field!(self, data)
+        match self {
+            RxPk::V1(pk) => &pk.data,
+            RxPk::V2(pk) => &pk.data,
+            RxPk::V3(pk) => &pk.pkt.payload,
+        }
     }
 
     pub fn get_timestamp(&self) -> &u32 {
-        get_field!(self, tmst)
+        match self {
+            RxPk::V1(pk) => &pk.tmst,
+            RxPk::V2(pk) => &pk.tmst,
+            RxPk::V3(pk) => &pk.pkt.tmst,
+        }
     }
 
-    pub fn get_time(&self) -> &Option<String> {
-        get_field!(self, time)
+    pub fn get_time(&self) -> Option<String> {
+        match self {
+            RxPk::V1(pk) => pk.time.clone(),
+            RxPk::V2(pk) => pk.time.clone(),
+            RxPk::V3(pk) => match pk.pkt.gps_time {
+                Some(gps_time) => {
+                        let utc = gps_time.to_utc();
+                        Some(format!("{}T{}Z", utc.date(), utc.time()))
+                    },
+                None => None,
+            }
+        }
     }
 
     pub fn get_datarate(&self) -> DataRate {
-        get_field!(self, datr).clone()
+        let datr = match self {
+            RxPk::V1(pk) => &pk.datr,
+            RxPk::V2(pk) => &pk.datr,
+            RxPk::V3(pk) => &pk.pkt.datarate,
+        };
+
+        datr.clone()
     }
 
     pub fn get_crc_status(&self) -> &CRC {
