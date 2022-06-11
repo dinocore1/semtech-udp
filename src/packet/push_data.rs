@@ -193,10 +193,10 @@ pub struct RxPktV3Data {
     pub rssi: u8,
     pub tmst: u32,
     pub datarate: DataRate,
-    pub gatwy_id: u64,
+    pub gatwy_id: MacAddress,
     pub gps_time: Option<GPSTime>,
     #[serde(with = "crate::packet::types::base64")]
-    pub payload: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -367,7 +367,7 @@ impl RxPk {
         match self {
             RxPk::V1(pk) => &pk.data,
             RxPk::V2(pk) => &pk.data,
-            RxPk::V3(pk) => &pk.pkt.payload,
+            RxPk::V3(pk) => &pk.pkt.data,
         }
     }
 
@@ -384,7 +384,7 @@ impl RxPk {
             RxPk::V1(pk) => pk.time.clone(),
             RxPk::V2(pk) => pk.time.clone(),
             RxPk::V3(pk) => match pk.pkt.gps_time {
-                Some(gps_time) => {
+                Some(ref gps_time) => {
                         let utc = gps_time.to_utc();
                         Some(format!("{}T{}Z", utc.date(), utc.time()))
                     },

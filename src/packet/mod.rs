@@ -12,7 +12,8 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 
 pub use macaddr::MacAddr8 as MacAddress;
 
-const PROTOCOL_VERSION: u8 = 2;
+const PROTOCOL_VERSION_2: u8 = 2;
+const PROTOCOL_VERSION_3: u8 = 3;
 
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
@@ -90,7 +91,7 @@ pub enum Down {
 use std::io::{Cursor, Write};
 
 fn write_preamble(w: &mut Cursor<&mut [u8]>, token: u16) -> Result {
-    Ok(w.write_all(&[PROTOCOL_VERSION, (token >> 8) as u8, token as u8])?)
+    Ok(w.write_all(&[PROTOCOL_VERSION_2, (token >> 8) as u8, token as u8])?)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

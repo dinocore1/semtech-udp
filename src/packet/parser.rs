@@ -37,9 +37,12 @@ impl Packet {
 
 impl Parser for Packet {
     fn parse(buffer: &[u8]) -> std::result::Result<Packet, ParseError> {
-        if buffer[PROTOCOL_VERSION_INDEX] != PROTOCOL_VERSION {
-            return Err(ParseError::InvalidProtocolVersion);
-        };
+
+        match buffer[PROTOCOL_VERSION_INDEX] {
+            PROTOCOL_VERSION_2 => (),
+            PROTOCOL_VERSION_3 => (),
+            _ => return Err(ParseError::InvalidProtocolVersion),
+        }
 
         match Identifier::try_from(buffer[IDENTIFIER_INDEX]) {
             Err(_) => Err(ParseError::InvalidIdentifier),
