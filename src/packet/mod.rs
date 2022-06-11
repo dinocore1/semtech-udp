@@ -24,6 +24,7 @@ pub enum Identifier {
     PullResp = 3,
     PullAck = 4,
     TxAck = 5,
+    PushDataSig = 6,
 }
 
 impl fmt::Display for Identifier {
@@ -37,6 +38,7 @@ pub mod pull_data;
 pub mod pull_resp;
 pub mod push_ack;
 pub mod push_data;
+pub mod push_data_sig;
 pub mod tx_ack;
 
 pub mod parser;
@@ -52,6 +54,7 @@ impl SerializablePacket for Packet {
         match self {
             Packet::Up(up) => match up {
                 Up::PushData(pkt) => pkt.serialize(buffer),
+                Up::PushDataSig(pkt) => pkt.serialize(buffer),
                 Up::PullData(pkt) => pkt.serialize(buffer),
                 Up::TxAck(pkt) => pkt.serialize(buffer),
             },
@@ -67,6 +70,7 @@ impl SerializablePacket for Packet {
 #[derive(Debug, Clone)]
 pub enum Up {
     PushData(push_data::Packet),
+    PushDataSig(push_data_sig::Packet),
     PullData(pull_data::Packet),
     TxAck(tx_ack::Packet),
 }
@@ -75,6 +79,7 @@ impl Up {
     pub fn set_gateway_mac(&mut self, mac: MacAddress) {
         match self {
             Up::PushData(push_data) => push_data.gateway_mac = mac,
+            Up::PushDataSig(push_data) => push_data.gateway_mac = mac,
             Up::PullData(pull_data) => pull_data.gateway_mac = mac,
             Up::TxAck(tx_ack) => tx_ack.gateway_mac = mac,
         }

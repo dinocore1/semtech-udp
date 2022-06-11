@@ -76,6 +76,23 @@ impl Parser for Packet {
                         }
                         .into()
                     }
+                    Identifier::PushDataSig => {
+                        let gateway_mac = gateway_mac(&buffer[..PACKET_PAYLOAD_START]);
+                        let json_str = std::str::from_utf8(&buffer[PACKET_PAYLOAD_START..])?;
+                        let data = serde_json::from_str(json_str).map_err(|json_error| {
+                            ParseError::InvalidJson {
+                                identifier: id,
+                                json_str: json_str.into(),
+                                json_error,
+                            }
+                        })?;
+                        push_data::Packet {
+                            random_token,
+                            gateway_mac,
+                            data
+                        }
+                        .into()
+                    }
                     Identifier::TxAck => {
                         let gateway_mac = gateway_mac(&buffer[..PACKET_PAYLOAD_START]);
                         let data = if buffer.len() > PACKET_PAYLOAD_START {

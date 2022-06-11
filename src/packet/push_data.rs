@@ -182,21 +182,17 @@ pub struct RxPkV2 {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RxPkV3 {
     pub key: u32,
-    pub pkt: RxPktV3Data,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RxPktV3Data {
     pub pos: Option<WGS84Position>,
     pub snr: i32,
     pub freq: u32,
-    pub rssi: u8,
+    pub rssis: u8,
+    pub rssic: u8,
     pub tmst: u32,
-    pub datarate: DataRate,
-    pub gatwy_id: MacAddress,
+    pub datr: DataRate,
     pub gps_time: Option<GPSTime>,
     #[serde(with = "crate::packet::types::base64")]
     pub data: Vec<u8>,
+    pub stat: CRC,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -238,6 +234,13 @@ impl GPSTime {
     pub fn to_utc(&self) -> OffsetDateTime {
         self.to_datetime() - Duration::from_secs(18)
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RxPkV3Sig {
+    pub key: u32,
+    #[serde(with = "crate::packet::types::base64")]
+    pub sig: Vec<u8>,
 }
 
 /*
@@ -304,6 +307,7 @@ macro_rules! get_field {
         match $self {
             RxPk::V1(pk) => &pk.$field,
             RxPk::V2(pk) => &pk.$field,
+            RxPk::V3(pk) => &pk.$field,
         }
     };
 }
@@ -325,7 +329,7 @@ impl RxPk {
                         max
                     }
                 }),
-            RxPk::V3(pk) => pk.pkt.snr as f32 / 10.0_f32,
+            RxPk::V3(pk) => pk.snr as f32 / 10.0_f32,
         }
     }
 
@@ -333,7 +337,7 @@ impl RxPk {
         match self {
             RxPk::V1(pk) => pk.rssi,
             RxPk::V2(pk) => pk.rsig.iter().fold(-150, |max, x| cmp::max(max, x.rssic)),
-            RxPk::V3(pk) => todo!()
+            RxPk::V3(pk) => pk.rssic as i32,
         }
     }
 
@@ -351,7 +355,7 @@ impl RxPk {
                     max
                 }
             }),
-            RxPk::V3(pk) => Some(pk.pkt.rssi as i32),
+            RxPk::V3(pk) => Some(pk.rssis as i32),
         }
     }
 
@@ -359,31 +363,23 @@ impl RxPk {
         match self {
             RxPk::V1(pk) => pk.freq,
             RxPk::V2(pk) => pk.freq,
-            RxPk::V3(pk) => pk.pkt.freq as f64 / 1_000_000_f64,
+            RxPk::V3(pk) => pk.freq as f64 / 1_000_000_f64,
         }
     }
 
     pub fn get_data(&self) -> &Vec<u8> {
-        match self {
-            RxPk::V1(pk) => &pk.data,
-            RxPk::V2(pk) => &pk.data,
-            RxPk::V3(pk) => &pk.pkt.data,
-        }
+        get_field!(self, data)
     }
 
     pub fn get_timestamp(&self) -> &u32 {
-        match self {
-            RxPk::V1(pk) => &pk.tmst,
-            RxPk::V2(pk) => &pk.tmst,
-            RxPk::V3(pk) => &pk.pkt.tmst,
-        }
+        get_field!(self, tmst)
     }
 
     pub fn get_time(&self) -> Option<String> {
         match self {
             RxPk::V1(pk) => pk.time.clone(),
             RxPk::V2(pk) => pk.time.clone(),
-            RxPk::V3(pk) => match pk.pkt.gps_time {
+            RxPk::V3(pk) => match pk.gps_time {
                 Some(ref gps_time) => {
                         let utc = gps_time.to_utc();
                         Some(format!("{}T{}Z", utc.date(), utc.time()))
@@ -394,13 +390,7 @@ impl RxPk {
     }
 
     pub fn get_datarate(&self) -> DataRate {
-        let datr = match self {
-            RxPk::V1(pk) => &pk.datr,
-            RxPk::V2(pk) => &pk.datr,
-            RxPk::V3(pk) => &pk.pkt.datarate,
-        };
-
-        datr.clone()
+        get_field!(self, datr).clone()
     }
 
     pub fn get_crc_status(&self) -> &CRC {
