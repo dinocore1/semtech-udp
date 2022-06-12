@@ -3,6 +3,7 @@ use super::{
     SerializablePacket, Up,
 };
 pub use crate::push_data::{RxPk, Stat};
+pub use crate::push_data_sig;
 use std::sync::Arc;
 use std::time::SystemTime;
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
@@ -25,6 +26,7 @@ enum InternalEvent {
     PacketBySocket((Packet, SocketAddr)),
     Client((MacAddress, SocketAddr)),
     PacketReceived(RxPk, MacAddress),
+    PacketSigReceived(push_data_sig::Packet, MacAddress),
     StatReceived(Stat, MacAddress),
     UnableToParseUdpFrame(ParseError, Vec<u8>),
     AckReceived(TxAck),
@@ -36,6 +38,7 @@ enum InternalEvent {
 #[derive(Debug)]
 pub enum Event {
     PacketReceived(RxPk, MacAddress),
+    PacketSigReceived(push_data_sig::Packet, MacAddress),
     StatReceived(Stat, MacAddress),
     NewClient((MacAddress, SocketAddr)),
     UpdateClient((MacAddress, SocketAddr)),
@@ -346,6 +349,13 @@ impl UdpRx {
                                         )))
                                         .await?;
                                 }
+                                Up::PushDataSig(push_data_sig) => {
+                                    self.internal_sender.send(InternalEvent::PacketSigReceived(
+                                        push_data_sig.clone(),
+                                        push_data_sig.gateway_mac,
+                                    ))
+                                    .await?;
+                                }
                             }
                         }
                     }
@@ -396,6 +406,11 @@ impl Internal {
                     InternalEvent::PacketReceived(rxpk, mac) => {
                         self.client_tx_sender
                             .send(Event::PacketReceived(rxpk, mac))
+                            .await?;
+                    }
+                    InternalEvent::PacketSigReceived(sigpkt, mac) => {
+                        self.client_tx_sender
+                            .send(Event::PacketSigReceived(sigpkt, mac))
                             .await?;
                     }
                     InternalEvent::StatReceived(stat, mac) => {
