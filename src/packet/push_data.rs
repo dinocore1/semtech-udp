@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use time::{macros::datetime, OffsetDateTime};
 use std::io::{Cursor, Write};
+use nlighten::gps::{GPSTime, WGS84Position};
 
 #[derive(Debug, Clone)]
 pub struct Packet {
@@ -193,47 +194,6 @@ pub struct RxPkV3 {
     #[serde(with = "crate::packet::types::base64")]
     pub data: Vec<u8>,
     pub stat: CRC,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct WGS84Position {
-    /// longitude (deg) 1e-7 scale
-    pub lon: i32,
-
-    /// latitude (deg) 1e-7 scale
-    pub lat: i32,
-
-    /// Height above ellipsoid (mm)
-    pub height: i32,
-
-    /// Horizontal accuracy estimate (mm)
-    pub hacc: u32,
-
-    /// Vertical accuracy estimate (mm)
-    pub vacc: Option<u32>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GPSTime {
-    pub secs: u64,
-    pub nanos: u32,
-}
-
-impl GPSTime {
-
-    pub const GPS_EPOCH: OffsetDateTime = datetime!(1980-01-06 0:00 UTC);
-
-    pub fn as_duration(&self) -> Duration {
-        Duration::new(self.secs, self.nanos)
-    }
-
-    pub fn to_datetime(&self) -> OffsetDateTime {
-        GPSTime::GPS_EPOCH + self.as_duration()
-    }
-
-    pub fn to_utc(&self) -> OffsetDateTime {
-        self.to_datetime() - Duration::from_secs(18)
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -434,8 +394,23 @@ pub struct Stat {
 
 impl SerializablePacket for Packet {
     fn serialize(&self, buffer: &mut [u8]) -> std::result::Result<u64, PktError> {
+
+
+        fn is_v3(pkt: &Packet) -> bool {
+            if let Some(ref v) = pkt.data.rxpk {
+                if let Some(RxPk::V3(rx)) = v.get(0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         let mut w = Cursor::new(buffer);
-        write_preamble(&mut w, self.random_token)?;
+        if is_v3(self) {
+            w.write_all(&[3, (self.random_token >> 8) as u8, self.random_token as u8])?;
+        } else {
+            write_preamble(&mut w, self.random_token)?;
+        }
         w.write_all(&[Identifier::PushData as u8])?;
         w.write_all(self.gateway_mac.as_bytes())?;
         w.write_all(serde_json::to_string(&self.data)?.as_bytes())?;

@@ -33,6 +33,7 @@ tokio = { version = "1", optional = true, features = ["rt", "net", "sync", "time
 thiserror = "1"
 triggered  = "0"
 time = { version = "0.3", default-features = false, features = ["macros"] }
+nlighten = { git = "https://gitlab.com/nlighten-systems/nlighten-core-rust.git" }
 
 [dev-dependencies]
 structopt = { version = "0.3.2", default-features = false }
