@@ -28,7 +28,7 @@ impl Packet {
         tx_ack::Packet {
             gateway_mac,
             random_token: self.random_token,
-            data: tx_ack::TxPkNack::default(),
+            data: tx_ack::Data::default(),
         }
     }
 
@@ -40,7 +40,7 @@ impl Packet {
         tx_ack::Packet {
             gateway_mac,
             random_token: self.random_token,
-            data: super::tx_ack::TxPkNack::new_with_error(error),
+            data: super::tx_ack::Data::new_with_error(error),
         }
     }
 
@@ -104,11 +104,35 @@ pub struct TxPk {
     pub fdev: Option<u64>, //FSK frequency deviation (unsigned integer, in Hz)
     pub ipol: bool,       // Lora modulation polarization inversion
     pub prea: Option<u64>, // RF preamble size (unsigned integer)
-    pub size: u64,        // RF packet payload size in bytes (unsigned integer)
-    #[serde(with = "crate::packet::types::base64")]
-    pub data: Vec<u8>, // Data to be transmitted, as bytes
+    #[serde(flatten)]
+    pub data: PhyData,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ncrc: Option<bool>, // If true, disable the CRC of the physical layer (optional)
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PhyData {
+    #[serde(with = "crate::packet::types::base64")]
+    data: Vec<u8>,
+    size: usize,
+}
+
+impl AsRef<[u8]> for PhyData {
+    fn as_ref(&self) -> &[u8] {
+        self.data.as_ref()
+    }
+}
+
+impl PhyData {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self {
+            size: data.len(),
+            data,
+        }
+    }
+    pub fn set(&mut self, data: Vec<u8>) {
+        self.size = data.len();
+        self.data = data;
+    }
 }
 
 impl TxPk {
@@ -138,7 +162,7 @@ impl fmt::Display for TxPk {
             },
             self.freq,
             self.datr,
-            self.size
+            self.data.size
         )
     }
 }

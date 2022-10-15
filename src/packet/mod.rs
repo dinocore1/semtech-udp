@@ -99,7 +99,7 @@ fn write_preamble(w: &mut Cursor<&mut [u8]>, token: u16) -> Result {
     Ok(w.write_all(&[PROTOCOL_VERSION_2, (token >> 8) as u8, token as u8])?)
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum StringOrNum {
     S(String),

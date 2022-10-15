@@ -130,7 +130,7 @@ pub struct RxPkV1 {
     pub time: Option<String>,
 }
 
-#[derive(Debug, Serialize_repr, Deserialize_repr, Clone, PartialEq)]
+#[derive(Debug, Serialize_repr, Deserialize_repr, Clone, PartialEq, Eq)]
 #[repr(i8)]
 pub enum CRC {
     Disabled = 0,
