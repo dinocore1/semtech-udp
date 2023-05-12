@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub use nlighten::gps::{GPSTime, WGS84Position};
+
 pub use data_rate::*;
 
 pub mod data_rate {

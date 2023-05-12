@@ -14,13 +14,12 @@ Bytes  | Function
  */
 use super::{
     push_ack, write_preamble, CodingRate, DataRate, Error as PktError, Identifier, MacAddress,
-    Modulation, SerializablePacket,
+    Modulation, SerializablePacket, GPSTime, WGS84Position,
 };
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use std::io::{Cursor, Write};
-use nlighten::gps::{GPSTime, WGS84Position};
 
 #[derive(Debug, Clone)]
 pub struct Packet {
