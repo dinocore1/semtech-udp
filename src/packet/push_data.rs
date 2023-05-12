@@ -366,6 +366,16 @@ impl RxPk {
         }
     }
 
+    /// Time the receiver received the packet according to GPS Time (GPS time unaffected by leap seconds and is currently offset from UTC by 18 seconds)
+    /// This value is used for Time Difference of Arraval (TDoA) calculations and should have nanosecond resolution.
+    pub fn get_gpstime(&self) -> Option<GPSTime> {
+        match self {
+            RxPk::V1(_) => None,
+            RxPk::V2(_) => None,
+            RxPk::V3(pk) => pk.gps_time,
+        }
+    }
+
     pub fn get_datarate(&self) -> DataRate {
         get_field!(self, datr).clone()
     }
