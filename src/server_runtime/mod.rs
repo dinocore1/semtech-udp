@@ -19,6 +19,7 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 
 const DEFAULT_DISCONNECT_THRESHOLD: u64 = 60;
 const DEFAULT_CACHE_CHECK_FREQ: u64 = 60;
+const MAX_MESSAGE_SIZE: usize = 65535;
 
 #[derive(Debug)]
 enum InternalEvent {
@@ -255,7 +256,7 @@ impl UdpRuntime {
             if let Err(e) = udp_rx.run().await {
                 // we panic here because the ony error case here
                 // if we lost the local socket somehow
-                panic!("UdpRx threw error: {:?}", e)
+                panic!("UdpRx threw error: {e:?}")
             }
         });
 
@@ -265,7 +266,7 @@ impl UdpRuntime {
             if let Err(e) = udp_tx.run().await {
                 // we panic here because the ony error case here
                 // if we lost the local socket somehow
-                panic!("UdpTx threw error: {:?}", e)
+                panic!("UdpTx threw error: {e:?}")
             }
         });
 
@@ -287,7 +288,7 @@ impl UdpRx {
         });
 
         let socket_handler = tokio::spawn(async move {
-            let mut buf = vec![0u8; 1024];
+            let mut buf = vec![0u8; MAX_MESSAGE_SIZE];
             loop {
                 match self.socket_receiver.recv_from(&mut buf).await {
                     Err(e) => return Err(e.into()),
@@ -382,7 +383,7 @@ impl UdpRx {
 
 impl Internal {
     pub async fn run(mut self) -> Result {
-        let mut buf = vec![0u8; 1024];
+        let mut buf = vec![0u8; MAX_MESSAGE_SIZE];
         loop {
             let msg = self.receiver.recv().await;
             if let Some(msg) = msg {

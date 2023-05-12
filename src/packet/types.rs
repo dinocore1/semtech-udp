@@ -27,8 +27,10 @@ pub mod data_rate {
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             let (sf, bw) = if s.len() > 8 {
                 (&s[..4], &s[4..])
-            } else {
+            } else if s.len() > 3 {
                 (&s[..3], &s[3..])
+            } else {
+                return Err(ParseError::InvalidSpreadingFactor);
             };
 
             Ok(DataRate(
@@ -131,13 +133,13 @@ pub mod data_rate {
 
     impl ToString for Bandwidth {
         fn to_string(&self) -> String {
-            format!("{:?}", self)
+            format!("{self:?}")
         }
     }
 
     impl ToString for SpreadingFactor {
         fn to_string(&self) -> String {
-            format!("{:?}", self)
+            format!("{self:?}")
         }
     }
 
@@ -191,6 +193,12 @@ pub mod data_rate {
         }
 
         #[test]
+        fn test_from_invalid_str() {
+            let datarate = DataRate::from_str("12");
+            assert!(datarate.is_err())
+        }
+
+        #[test]
         fn test_from_str_sf7() {
             let datarate = DataRate::from_str("SF7BW500").unwrap();
             assert_eq!(datarate, DataRate(SpreadingFactor::SF7, Bandwidth::BW500))
@@ -220,13 +228,15 @@ pub enum Modulation {
 
 pub(crate) mod base64 {
     extern crate base64;
+    use crate::packet::types::base64::base64::Engine;
     use serde::{de, Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_str(&base64::encode(bytes))
+        let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+        serializer.serialize_str(&b64)
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
@@ -234,6 +244,8 @@ pub(crate) mod base64 {
         D: Deserializer<'de>,
     {
         let s = <&str>::deserialize(deserializer)?;
-        base64::decode(s).map_err(de::Error::custom)
+        base64::engine::general_purpose::STANDARD
+            .decode(s)
+            .map_err(de::Error::custom)
     }
 }

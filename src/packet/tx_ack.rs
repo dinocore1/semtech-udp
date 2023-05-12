@@ -118,7 +118,7 @@ impl From<Result<(), Error>> for ErrorField {
 }
 
 impl ErrorField {
-    fn to_result(&self, tmst: Option<u32>) -> Result<Option<u32>, Error> {
+    fn as_result(&self, tmst: Option<u32>) -> Result<Option<u32>, Error> {
         match self {
             ErrorField::TooEarly => Err(Error::TooEarly),
             ErrorField::CollisionPacket => Err(Error::CollisionPacket),
@@ -169,7 +169,7 @@ pub struct TxPkAck {
     #[serde(skip_serializing_if = "Option::is_none")]
     tmst: Option<u32>,
     #[serde(flatten)]
-    result: TxPkAckResult,
+    result: Option<TxPkAckResult>,
 }
 
 impl Default for Data {
@@ -177,9 +177,9 @@ impl Default for Data {
         Data {
             txpk_ack: TxPkAck {
                 tmst: None,
-                result: TxPkAckResult::Error {
+                result: Some(TxPkAckResult::Error {
                     error: ErrorField::None,
-                },
+                }),
             },
         }
     }
@@ -204,22 +204,26 @@ impl Data {
             )
         };
         Data {
-            txpk_ack: TxPkAck { tmst, result },
+            txpk_ack: TxPkAck {
+                tmst,
+                result: Some(result),
+            },
         }
     }
 
     pub fn get_result(&self) -> Result<Option<u32>, Error> {
         match &self.txpk_ack.result {
-            TxPkAckResult::Error { error } => (*error).to_result(self.txpk_ack.tmst),
-            TxPkAckResult::Warn { warn, value } => {
+            Some(TxPkAckResult::Error { error }) => (*error).as_result(self.txpk_ack.tmst),
+            Some(TxPkAckResult::Warn { warn, value }) => {
                 // We need special handling of the ErrorField when warning
                 // otherwise, the into will specify it as InvalidTransmitPower
                 if let ErrorField::TxPower = warn {
                     Err(Error::AdjustedTransmitPower(*value, self.txpk_ack.tmst))
                 } else {
-                    (*warn).to_result(self.txpk_ack.tmst)
+                    (*warn).as_result(self.txpk_ack.tmst)
                 }
             }
+            None => Ok(self.txpk_ack.tmst),
         }
     }
 }
@@ -237,6 +241,14 @@ enum TxPkAckResult {
     },
 }
 
+impl Default for TxPkAckResult {
+    fn default() -> Self {
+        TxPkAckResult::Error {
+            error: ErrorField::None,
+        }
+    }
+}
+
 #[test]
 fn tx_nack_too_late() {
     let json = "{\"txpk_ack\": { \"error\": \"TOO_LATE\"}}";
@@ -250,6 +262,24 @@ fn tx_nack_too_late() {
 #[test]
 fn tx_ack_deser() {
     let json = "{\"txpk_ack\":{\"error\":\"NONE\"}}";
+    let parsed: Data = serde_json::from_str(json).expect("Error parsing tx_ack");
+    if let Err(_) = parsed.get_result() {
+        assert!(false);
+    }
+}
+
+#[test]
+fn tx_ack_deser_minimal() {
+    let json = "{\"txpk_ack\":{}}";
+    let parsed: Data = serde_json::from_str(json).expect("Error parsing tx_ack");
+    if let Err(_) = parsed.get_result() {
+        assert!(false);
+    }
+}
+
+#[test]
+fn tx_ack_deser_empty_error() {
+    let json = "{\"txpk_ack\":{\"error\":\"\"}}";
     let parsed: Data = serde_json::from_str(json).expect("Error parsing tx_ack");
     if let Err(_) = parsed.get_result() {
         assert!(false);
@@ -313,4 +343,22 @@ fn tx_nack_tx_power_sx1302_ser() {
     let invalid_transmit_power = Data::new_with_error(Error::AdjustedTransmitPower(Some(27), None));
     let str = serde_json::to_string(&invalid_transmit_power).expect("serialization error");
     assert_eq!("{\"txpk_ack\":{\"warn\":\"TX_POWER\",\"value\":27}}", str)
+}
+
+#[test]
+fn null_terminate() {
+    use crate::packet::parser::Parser;
+    let bytes = hex::decode("02904905aa555a00000000007b227478706b5f61636b223a7b227761726e223a2254585f504f574552222c2276616c7565223a32372c22746d7374223a333937353336363839317d7d00").unwrap();
+    println!("{bytes:?}");
+    let frame = crate::packet::Packet::parse(&bytes).unwrap();
+    println!("{frame:?}");
+}
+
+#[test]
+fn dont_null_terminate() {
+    use crate::packet::parser::Parser;
+    let bytes = hex::decode("02904905aa555a00000000007b227478706b5f61636b223a7b227761726e223a2254585f504f574552222c2276616c7565223a32372c22746d7374223a333937353336363839317d7d").unwrap();
+    println!("{bytes:?}");
+    let frame = crate::packet::Packet::parse(&bytes).unwrap();
+    println!("{frame:?}");
 }

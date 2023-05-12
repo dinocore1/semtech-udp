@@ -1,7 +1,8 @@
+use semtech_udp::pull_resp::Time;
 use semtech_udp::{
     pull_resp::{self, PhyData},
     server_runtime::{Error, Event, UdpRuntime},
-    tx_ack, Bandwidth, CodingRate, DataRate, MacAddress, Modulation, SpreadingFactor, StringOrNum,
+    tx_ack, Bandwidth, CodingRate, DataRate, MacAddress, Modulation, SpreadingFactor,
 };
 use std::net::SocketAddr;
 use structopt::StructOpt;
@@ -31,11 +32,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             while cli.delay != 0 || first_shot {
                 first_shot = false;
                 let data = vec![0; cli.length];
-                let tmst = StringOrNum::S("immedate".into());
 
                 let txpk = pull_resp::TxPk {
-                    imme: true,
-                    tmst: Some(tmst),
+                    time: Time::immediate(),
                     freq: cli.frequency,
                     rfch: 0,
                     powe: cli.power as u64,
@@ -44,13 +43,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     codr: CodingRate::_4_5,
                     ipol: cli.polarization_inversion,
                     data: PhyData::new(data),
-                    tmms: None,
                     fdev: None,
                     prea: None,
                     ncrc: None,
                 };
 
-                println!("Sending: {}", txpk);
+                println!("Sending: {txpk}");
 
                 let prepared_send = client_tx.prepare_downlink(Some(txpk), gateway_mac);
 
@@ -85,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("UDP data: {buf:?}");
             }
             Event::NewClient((mac, addr)) => {
-                println!("New packet forwarder client: {}, {}", mac, addr);
+                println!("New packet forwarder client: {mac}, {addr}");
 
                 // unlock the tx thread by sending it the gateway mac of the
                 // the first client (connection via PULL_DATA frame)
@@ -94,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Event::UpdateClient((mac, addr)) => {
-                println!("Mac existed, but IP updated: {}, {}", mac, addr);
+                println!("Mac existed, but IP updated: {mac}, {addr}");
             }
             Event::PacketReceived(rxpk, addr) => {
                 println!("Packet Receveived from {addr}: {rxpk:?}");
@@ -103,7 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Stat Receveived from {addr}: {stat:?}");
             }
             Event::NoClientWithMac(_packet, mac) => {
-                println!("Tried to send to client with unknown MAC: {:?}", mac)
+                println!("Tried to send to client with unknown MAC: {mac:?}")
             }
             Event::ClientDisconnected((mac, addr)) => {
                 println!("Client disconnected: {mac}, {addr}");

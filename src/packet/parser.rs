@@ -30,7 +30,7 @@ impl Packet {
     pub fn parse_downlink(buffer: &[u8]) -> std::result::Result<Down, ParseError> {
         match Self::parse(buffer)? {
             Packet::Down(down) => Ok(down),
-            Packet::Up(up) => Err(ParseError::UnexpectedUplink(up)),
+            Packet::Up(up) => Err(ParseError::UnexpectedUplink(Box::new(up))),
         }
     }
 }
@@ -61,7 +61,8 @@ impl Parser for Packet {
                     }
                     Identifier::PushData => {
                         let gateway_mac = gateway_mac(&buffer[..PACKET_PAYLOAD_START]);
-                        let json_str = std::str::from_utf8(&buffer[PACKET_PAYLOAD_START..])?;
+                        let json_str =
+                            std::str::from_utf8(&buffer[PACKET_PAYLOAD_START..terminate(buffer)])?;
                         let data = serde_json::from_str(json_str).map_err(|json_error| {
                             ParseError::InvalidJson {
                                 identifier: id,
@@ -102,8 +103,9 @@ impl Parser for Packet {
                             {
                                 Data::default()
                             } else {
-                                let json_str =
-                                    std::str::from_utf8(&buffer[PACKET_PAYLOAD_START..])?;
+                                let json_str = std::str::from_utf8(
+                                    &buffer[PACKET_PAYLOAD_START..terminate(buffer)],
+                                )?;
                                 serde_json::from_str(json_str).map_err(|json_error| {
                                     ParseError::InvalidJson {
                                         identifier: id,
@@ -126,7 +128,7 @@ impl Parser for Packet {
                     Identifier::PushAck => push_ack::Packet { random_token }.into(),
                     Identifier::PullAck => pull_ack::Packet { random_token }.into(),
                     Identifier::PullResp => {
-                        let json_str = std::str::from_utf8(buffer)?;
+                        let json_str = std::str::from_utf8(&buffer[..terminate(buffer)])?;
                         let data = serde_json::from_str(json_str).map_err(|json_error| {
                             ParseError::InvalidJson {
                                 identifier: id,
@@ -139,5 +141,14 @@ impl Parser for Packet {
                 })
             }
         }
+    }
+}
+
+// deals with null byte terminated json
+fn terminate(buf: &[u8]) -> usize {
+    if buf[buf.len() - 1] == 0 {
+        buf.len() - 1
+    } else {
+        buf.len()
     }
 }

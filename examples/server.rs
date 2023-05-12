@@ -1,8 +1,8 @@
-use semtech_udp::pull_resp::PhyData;
+use semtech_udp::pull_resp::{PhyData, Time};
 use semtech_udp::{
     pull_resp,
     server_runtime::{Error, Event, UdpRuntime},
-    tx_ack, CodingRate, DataRate, Modulation, StringOrNum,
+    tx_ack, CodingRate, DataRate, Modulation,
 };
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -12,7 +12,7 @@ use structopt::StructOpt;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Opt::from_args();
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
-    println!("Starting server: {}", addr);
+    println!("Starting server: {addr}");
     let mut udp_runtime = UdpRuntime::new(addr).await?;
     println!("Ready for clients");
     loop {
@@ -32,14 +32,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Client disconnected: {mac}, {addr}");
             }
             Event::PacketReceived(rxpk, gateway_mac) => {
-                println!("{:?}", rxpk);
-
+                println!("{rxpk:?}");
                 let data = vec![1, 2, 3, 4];
-                let tmst = StringOrNum::N(rxpk.get_timestamp() + 1_000_000);
+                let tmst = rxpk.get_timestamp() + 1_000_000;
 
                 let txpk = pull_resp::TxPk {
-                    imme: false,
-                    tmst: Some(tmst),
+                    time: Time::by_tmst(tmst),
                     freq: 902.800_000,
                     rfch: 0,
                     powe: 27,
@@ -48,7 +46,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     codr: CodingRate::_4_5,
                     ipol: true,
                     data: PhyData::new(data),
-                    tmms: None,
                     fdev: None,
                     prea: None,
                     ncrc: None,
