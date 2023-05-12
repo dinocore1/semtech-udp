@@ -349,6 +349,24 @@ impl RxPk {
         }
     }
 
+    /// GPS position of Concentrator Card when the packet was received.
+    pub fn get_pos(&self) -> Option<WGS84Position> {
+        match self {
+            RxPk::V1(_) => None,
+            RxPk::V2(_) => None,
+            RxPk::V3(pk) => pk.pos,
+        }
+    }
+
+    /// Unique identifier of this packet. Useful for matching with Secure Concentrator signed packet.
+    pub fn get_id(&self) -> Option<u32> {
+        match self {
+            RxPk::V1(_) => None,
+            RxPk::V2(_) => None,
+            RxPk::V3(pk) => Some(pk.key),
+        }
+    }
+
     pub fn get_datarate(&self) -> DataRate {
         get_field!(self, datr).clone()
     }
@@ -398,7 +416,7 @@ impl SerializablePacket for Packet {
 
         fn is_v3(pkt: &Packet) -> bool {
             if let Some(ref v) = pkt.data.rxpk {
-                if let Some(RxPk::V3(rx)) = v.get(0) {
+                if let Some(RxPk::V3(_rx)) = v.get(0) {
                     return true;
                 }
             }
